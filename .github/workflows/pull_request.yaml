@@ -1,0 +1,40 @@
+name: Pull Request
+on: ["pull_request"]
+
+jobs:
+  go-tests:
+    name: Go Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: setup go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.14.x
+
+      - name: checkout
+        uses: actions/checkout@v2
+
+      - name: unit test
+        run: go test -v ./...
+
+      - name: test build
+        run: go build -o build/action-conftest
+
+      - name: test docker build
+        run: docker build .
+
+  test-run-action:
+    name: Test the Action
+    needs: go-tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+
+      - name: run action
+        uses: './'
+        with:
+          files: '.github/test/resources'
+          policy: '.github/test/policy/always_warn.rego'
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+          gh-comment-url: ${{ github.event.pull_request.comments_url }}
