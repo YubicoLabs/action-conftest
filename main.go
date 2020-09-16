@@ -142,8 +142,10 @@ func getFullPullURL() (string, error) {
 
 func runConftestPull(url string) error {
 	cmd := exec.Command("conftest", "pull", url)
+	var out bytes.Buffer
+	cmd.Stderr = &out
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("running conftest pull: %w", err)
+		return fmt.Errorf("running conftest pull: %s", out.String())
 	}
 
 	return nil
