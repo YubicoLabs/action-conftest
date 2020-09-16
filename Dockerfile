@@ -1,4 +1,4 @@
-FROM instrumenta/conftest:latest as conftest
+FROM instrumenta/conftest:v0.20.0 as conftest
 
 FROM golang:1.14-alpine as builder
 COPY main.go .
