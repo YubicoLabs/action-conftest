@@ -9,7 +9,7 @@ jobs:
       - name: setup go
         uses: actions/setup-go@v2
         with:
-          go-version: 1.14.x
+          go-version: 1.15.x
 
       - name: checkout
         uses: actions/checkout@v2
@@ -19,9 +19,6 @@ jobs:
 
       - name: test build
         run: go build -o build/action-conftest
-
-      - name: test docker build
-        run: docker build .
 
   test-run-action:
     name: Test the Action

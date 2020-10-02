@@ -35,6 +35,31 @@ type commentData struct {
 	DocsURL string
 }
 
+type jsonResult struct {
+	Message  string                 `json:"msg"`
+	Metadata map[string]interface{} `json:"metadata,omitempty"`
+}
+
+type jsonCheckResult struct {
+	Filename  string       `json:"filename"`
+	Successes []jsonResult `json:"successes"`
+	Warnings  []jsonResult `json:"warnings,omitempty"`
+	Failures  []jsonResult `json:"failures,omitempty"`
+}
+
+type metricsSubmission struct {
+	SourceID  string            `json:"sourceID"`
+	Successes int               `json:"successes,omitempty"`
+	Warnings  metricsSeverity   `json:"warns,omitempty"`
+	Failures  metricsSeverity   `json:"fails,omitempty"`
+	Details   []jsonCheckResult `json:"details,omitempty"`
+}
+
+type metricsSeverity struct {
+	Count     int      `json:"count"`
+	PolicyIDs []string `json:"policyIDs"`
+}
+
 const commentTemplate = `**Conftest has identified issues with your resources**
 {{ if .Fails }}
 The following policy violations were identified. These are blocking and must be remediated before proceeding.
@@ -48,40 +73,115 @@ The following warnings were identified. These are issues that indicate the resou
 {{ if .DocsURL }}For more information, see the [policy documentation]({{ .DocsURL }}).
 {{end}}`
 
-var (
-	conftestFlags = []string{"COMBINE", "POLICY", "ALL_NAMESPACES", "DATA"}
-)
+var conftestFlags = []string{"COMBINE", "POLICY", "ALL_NAMESPACES", "DATA"}
 
 func main() {
+	err := run()
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	if os.Getenv("FILES") == "" {
-		errorAndExit(fmt.Errorf("at least one file to test must be supplied"))
+		return fmt.Errorf("at least one file to test must be supplied")
 	}
 
 	pullURL, err := getFullPullURL()
 	if err != nil {
-		errorAndExit(err)
+		return fmt.Errorf("get full pull url: %w", err)
 	}
 
 	if pullURL != "" {
 		if err := runConftestPull(pullURL); err != nil {
-			errorAndExit(err)
+			return fmt.Errorf("runnning conftest pull: %w", err)
 		}
 	}
 
-	fails, warns, err := runConftestTest()
+	results, err := runConftestTest()
 	if err != nil {
-		errorAndExit(fmt.Errorf("running conftest: %w", err))
+		return fmt.Errorf("running conftest: %w", err)
 	}
 
-	if len(fails) > 0 {
-		defer os.Exit(1)
+	metricsURL := os.Getenv("METRICS_URL")
+	policyIDKey := os.Getenv("POLICY_ID_KEY")
+
+	var policiesWithFails, policiesWithWarns []string
+	var fails, warns []string
+	var successes int
+	for _, result := range results {
+		successes += len(result.Successes)
+
+		for _, fail := range result.Failures {
+			// attempt to parse the policy ID section, skip if there are errors
+			policyID, err := getPolicyIDFromMetadata(fail.Metadata, policyIDKey)
+			if err != nil {
+				fails = append(fails, fmt.Sprintf("%s - %s", result.Filename, fail.Message))
+				continue
+			}
+
+			fails = append(fails, fmt.Sprintf("%s - %s: %s", result.Filename, policyID, fail.Message))
+
+			if !contains(policiesWithFails, policyID) {
+				policiesWithFails = append(policiesWithFails, policyID)
+			}
+		}
+
+		for _, warn := range result.Warnings {
+			// attempt to parse the policy ID section, skip if there are errors
+			policyID, err := getPolicyIDFromMetadata(warn.Metadata, policyIDKey)
+			if err != nil {
+				warns = append(warns, fmt.Sprintf("%s - %s", result.Filename, warn.Message))
+				continue
+			}
+
+			warns = append(warns, fmt.Sprintf("%s - %s: %s", result.Filename, policyID, warn.Message))
+
+			if !contains(policiesWithWarns, policyID) {
+				policiesWithWarns = append(policiesWithWarns, policyID)
+			}
+		}
 	}
 
-	if os.Getenv("ADD_COMMENT") != "true" {
-		return
+	// attempt to submit metrics, but do not fail the CI job if there are errors
+	if metricsURL != "" {
+		sourceID := os.Getenv("METRICS_SOURCE")
+		if sourceID == "" {
+			return fmt.Errorf("metrics-source must be specified if metrics-url is set")
+		}
+
+		metrics := metricsSubmission{
+			SourceID:  sourceID,
+			Successes: successes,
+			Failures: metricsSeverity{
+				Count:     len(fails),
+				PolicyIDs: policiesWithFails,
+			},
+			Warnings: metricsSeverity{
+				Count:     len(warns),
+				PolicyIDs: policiesWithWarns,
+			},
+		}
+		if strings.ToLower(os.Getenv("METRICS_DETAILS")) == "true" {
+			metrics.Details = results
+		}
+		metricsJSON, err := json.Marshal(metrics)
+		if err != nil {
+			return fmt.Errorf("marshal metrics json: %w", err)
+		}
+
+		var metricsToken string
+		if os.Getenv("METRICS_TOKEN") != "" {
+			metricsToken = fmt.Sprintf("Bearer %s", os.Getenv("METRICS_TOKEN"))
+		}
+
+		submitPost(metricsURL, metricsJSON, metricsToken)
 	}
+
 	if len(fails) == 0 && len(warns) == 0 {
-		return
+		fmt.Println("No policy violations or warnings were identified.")
+		return nil
 	}
 
 	d := commentData{Fails: fails, Warns: warns}
@@ -89,14 +189,35 @@ func main() {
 		d.DocsURL = os.Getenv("DOCS_URL")
 	}
 
-	c, err := getCommentJSON(d)
+	t, err := renderTemplate(d)
 	if err != nil {
-		errorAndExit(fmt.Errorf("getting comment: %w", err))
+		return fmt.Errorf("rendering template: %w", err)
 	}
 
-	if err := submitComment(c); err != nil {
-		errorAndExit(fmt.Errorf("submitting comment: %w", err))
+	// ensure the results are written to the CI logs
+	fmt.Println(string(t))
+
+	if os.Getenv("ADD_COMMENT") != "true" {
+		return nil
 	}
+
+	ghComment, err := getCommentJSON(t)
+	if err != nil {
+		return fmt.Errorf("get comment json: %w", err)
+	}
+
+	ghToken := fmt.Sprintf("token %s", os.Getenv("GITHUB_TOKEN"))
+	if err := submitPost(os.Getenv("GITHUB_COMMENT_URL"), ghComment, ghToken); err != nil {
+		return fmt.Errorf("submitting comment: %w", err)
+	}
+
+	if len(fails) > 0 {
+		if strings.ToLower(os.Getenv("NO_FAIL")) != "true" {
+			return fmt.Errorf("%d policy violations were found", len(fails))
+		}
+	}
+
+	return nil
 }
 
 func getFullPullURL() (string, error) {
@@ -145,45 +266,37 @@ func runConftestPull(url string) error {
 	var out bytes.Buffer
 	cmd.Stderr = &out
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("running conftest pull: %s", out.String())
+		return fmt.Errorf("%s", out.String())
 	}
 
 	return nil
 }
 
-func runConftestTest() ([]string, []string, error) {
-	args := []string{"test", "--no-color"}
+func runConftestTest() ([]jsonCheckResult, error) {
+	args := []string{"test", "--no-color", "--output", "json"}
 	flags := getFlagsFromEnv()
 	args = append(args, flags...)
 	files := strings.Split(os.Getenv("FILES"), " ")
 	args = append(args, files...)
 
-	var out bytes.Buffer
 	cmd := exec.Command("conftest", args...)
-	cmd.Stdout = &out
-	cmd.Stderr = &out
-	cmd.Run()
+	out, _ := cmd.CombinedOutput() // intentionally ignore errors so we can parse the results
 
-	lines := strings.Split(out.String(), "\n")
-	if strings.HasPrefix(lines[0], "Error:") {
-		return nil, nil, fmt.Errorf("invalid flags: %s", lines[0])
+	var results []jsonCheckResult
+	if err := json.Unmarshal(out, &results); err != nil {
+		return nil, fmt.Errorf("%s", string(out))
 	}
 
-	var fails, warns []string
-	for _, l := range lines {
-		if strings.HasPrefix(l, "WARN") {
-			warns = append(warns, l)
-			continue
-		}
+	return results, nil
+}
 
-		if strings.HasPrefix(l, "FAIL") {
-			fails = append(fails, l)
-		}
+func getPolicyIDFromMetadata(metadata map[string]interface{}, policyIDKey string) (string, error) {
+	details := metadata["details"].(map[string]interface{})
+	if details[policyIDKey] == "" {
+		return "", fmt.Errorf("empty policyID key")
 	}
 
-	fmt.Println(out.String())
-
-	return fails, warns, nil
+	return fmt.Sprintf("%v", details[policyIDKey]), nil
 }
 
 func getFlagsFromEnv() []string {
@@ -205,7 +318,7 @@ func getFlagsFromEnv() []string {
 	return args
 }
 
-func getCommentJSON(d commentData) ([]byte, error) {
+func renderTemplate(d commentData) ([]byte, error) {
 	t, err := template.New("conftest").Parse(commentTemplate)
 	if err != nil {
 		return nil, fmt.Errorf("parsing template: %w", err)
@@ -216,22 +329,28 @@ func getCommentJSON(d commentData) ([]byte, error) {
 		return nil, fmt.Errorf("executing template: %w", err)
 	}
 
-	j, err := json.Marshal(map[string]string{"body": o.String()})
+	return o.Bytes(), nil
+}
+
+func getCommentJSON(comment []byte) ([]byte, error) {
+	j, err := json.Marshal(map[string]string{"body": string(comment)})
 	if err != nil {
-		return nil, fmt.Errorf("marshalling comment")
+		return nil, fmt.Errorf("marshalling comment: %w", err)
 	}
 
 	return j, nil
 }
 
-func submitComment(comment []byte) error {
-	req, err := http.NewRequest("POST", os.Getenv("GITHUB_COMMENT_URL"), bytes.NewReader(comment))
+func submitPost(url string, data []byte, authz string) error {
+	req, err := http.NewRequest("POST", url, bytes.NewReader(data))
 	if err != nil {
 		return fmt.Errorf("creating http request: %w", err)
 	}
-	req.Header.Add("Accept", "application/vnd.github.v3+json")
+
 	req.Header.Add("Content-Type", "application/json")
-	req.Header.Add("Authorization", fmt.Sprintf("token %s", os.Getenv("GITHUB_TOKEN")))
+	if authz != "" {
+		req.Header.Add("Authorization", authz)
+	}
 
 	c := http.Client{}
 	resp, err := c.Do(req)
@@ -240,9 +359,13 @@ func submitComment(comment []byte) error {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 201 {
-		msg, _ := ioutil.ReadAll(resp.Body)
-		return fmt.Errorf("submitting comment: %s", string(msg))
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		msg, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			msg = []byte(fmt.Sprintf("unable to read response body: %s", err))
+		}
+
+		return fmt.Errorf("remote server error: status %d: %s", resp.StatusCode, string(msg))
 	}
 
 	return nil
@@ -252,7 +375,12 @@ func getFlagFromEnv(e string) string {
 	return fmt.Sprintf("--%s", strings.ToLower(strings.ReplaceAll(e, "_", "-")))
 }
 
-func errorAndExit(e error) {
-	fmt.Println(e)
-	os.Exit(1)
+func contains(list []string, item string) bool {
+	for _, l := range list {
+		if l == item {
+			return true
+		}
+	}
+
+	return false
 }
