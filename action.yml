@@ -5,7 +5,7 @@ branding:
   color: "green"
 inputs: 
   files:
-    description: "Files for Conftest to test (space delimited)"
+    description: "Files and/or folders for Conftest to test (space delimited)"
     required: true
   policy:
     description: "Where to find the policy folder or file"
@@ -25,11 +25,24 @@ inputs:
     description: "Whether or not to add a comment to the PR"
     default: true
   docs-url:
-    description: "The URL where users can find out more about the policies"
+    description: "URL where users can find out more about the policies"
+  no-fail:
+    description: "Always returns an exit code of 0 (no error)"
   gh-token:
-    description: "The token that allows us to post a comment in the PR"
+    description: "Token that allows us to post a comment in the PR"
   gh-comment-url:
-    description: "The URL of the comments for the PR"
+    description: "URL of the comments for the PR"
+  metrics-url:
+    description: "URL to POST the results to for metrics"
+  metrics-source:
+    description: "Unique identifier for the source of the submission"
+  metrics-details:
+    description: "Whether to include the full test results in the metrics"
+  metrics-token:
+    description: "Bearer token for submitting metrics"
+  policy-id-key:
+    description: "Name of the key in the details object that stores the policy ID"
+    default: "policyID"
 runs:
   using: 'docker'
   image: 'Dockerfile'
@@ -43,5 +56,11 @@ runs:
     PULL_SECRET: ${{ inputs.pull-secret }}
     ADD_COMMENT: ${{ inputs.add-comment }}
     DOCS_URL: ${{ inputs.docs-url }}
+    NO_FAIL: ${{ inputs.no-fail }}
     GITHUB_TOKEN: ${{ inputs.gh-token }}
     GITHUB_COMMENT_URL: ${{ inputs.gh-comment-url }}
+    METRICS_URL: ${{ inputs.metrics-url }}
+    METRICS_SOURCE: ${{ inputs.metrics-source }}
+    METRICS_DETAILS: ${{ inputs.metrics-details }}
+    METRICS_TOKEN: ${{ inputs.metrics-token }}
+    POLICY_ID_KEY: ${{ inputs.policy-id-key }}

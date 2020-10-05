@@ -128,3 +128,21 @@ func TestGetFlagsFromEnv(t *testing.T) {
 		}
 	}
 }
+
+func TestGetPolicyIDFromMetadata(t *testing.T) {
+	metadata := map[string]interface{}{
+		"details": map[string]interface{}{
+			"policyID": "TEST",
+		},
+	}
+
+	const expected = "TEST"
+	actual, err := getPolicyIDFromMetadata(metadata, "policyID")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if actual != expected {
+		t.Errorf("output %v did not match expected %v", actual, expected)
+	}
+}

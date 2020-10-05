@@ -1,10 +1,7 @@
 FROM instrumenta/conftest:v0.20.0 as conftest
 
-FROM golang:1.14-alpine as builder
-COPY main.go .
-RUN go build -o /entrypoint
-
-FROM alpine:3
+FROM golang:1.15-alpine as builder
 COPY --from=conftest /conftest /usr/local/bin/conftest
-COPY --from=builder /entrypoint /usr/local/bin/entrypoint
-CMD [ "/usr/local/bin/entrypoint" ]
+COPY main.go .
+RUN go build -o /entrypoint main.go
+CMD [ "/entrypoint" ]
