@@ -56,8 +56,8 @@ type metricsSubmission struct {
 }
 
 type metricsSeverity struct {
-	Count     int      `json:"count"`
-	PolicyIDs []string `json:"policyIDs"`
+	Count     int      `json:"count,omitempty"`
+	PolicyIDs []string `json:"policyIDs,omitempty"`
 }
 
 const commentTemplate = `**Conftest has identified issues with your resources**

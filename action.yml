@@ -1,8 +1,8 @@
-name: "Conftest"
-description: "Write tests against structured configuration data using Open Policy Agent"
+name: "Conftest Action"
+description: "Easily run Conftest, surface the results, and obtain test metrics"
 branding:
-  icon: "check"
-  color: "green"
+  icon: "check-square"
+  color: "purple"
 inputs: 
   files:
     description: "Files and/or folders for Conftest to test (space delimited)"
@@ -10,39 +10,55 @@ inputs:
   policy:
     description: "Where to find the policy folder or file"
     default: "policy"
+    required: false
   data:
     description: "Files or folder with supplemental test data"
+    required: false
   all-namespaces:
     description: "Whether to use all namespaces in testing"
-    default: true
+    default: "true"
+    required: false
   combine:
     description: "Whether to combine input files"
+    required: false
   pull-url:
     description: "URL to pull policies from"
+    required: false
   pull-secret:
     description: "Secret that allows the policies to be pulled"
+    required: false
   add-comment:
     description: "Whether or not to add a comment to the PR"
-    default: true
+    default: "true"
+    required: false
   docs-url:
     description: "URL where users can find out more about the policies"
+    required: false
   no-fail:
     description: "Always returns an exit code of 0 (no error)"
+    required: false
   gh-token:
     description: "Token that allows us to post a comment in the PR"
+    required: false
   gh-comment-url:
     description: "URL of the comments for the PR"
+    required: false
   metrics-url:
     description: "URL to POST the results to for metrics"
+    required: false
   metrics-source:
     description: "Unique identifier for the source of the submission"
+    required: false
   metrics-details:
     description: "Whether to include the full test results in the metrics"
+    required: false
   metrics-token:
     description: "Bearer token for submitting metrics"
+    required: false
   policy-id-key:
     description: "Name of the key in the details object that stores the policy ID"
     default: "policyID"
+    required: false
 runs:
   using: 'docker'
   image: 'Dockerfile'
