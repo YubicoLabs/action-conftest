@@ -1,5 +1,5 @@
 name: "Conftest Action"
-description: "Easily run Conftest, surface the results, and obtain test metrics"
+description: "Easily run Conftest, pull remote policies, surface the results, and obtain test metrics"
 branding:
   icon: "check-square"
   color: "purple"
