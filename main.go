@@ -292,7 +292,7 @@ func runConftestTest() ([]jsonCheckResult, error) {
 
 func getPolicyIDFromMetadata(metadata map[string]interface{}, policyIDKey string) (string, error) {
 	details := metadata["details"].(map[string]interface{})
-	if details[policyIDKey] == "" {
+	if details[policyIDKey] == nil {
 		return "", fmt.Errorf("empty policyID key")
 	}
 

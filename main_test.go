@@ -146,3 +146,16 @@ func TestGetPolicyIDFromMetadata(t *testing.T) {
 		t.Errorf("output %v did not match expected %v", actual, expected)
 	}
 }
+
+func TestGetPolicyIDFromMetadata_Empty(t *testing.T) {
+	metadata := map[string]interface{}{
+		"details": map[string]interface{}{
+			"test": "TEST",
+		},
+	}
+
+	_, err := getPolicyIDFromMetadata(metadata, "policyID")
+	if err == nil {
+		t.Errorf("should error when policyIDKey does not exist")
+	}
+}
