@@ -114,30 +114,22 @@ func run() error {
 		successes += len(result.Successes)
 
 		for _, fail := range result.Failures {
-			// attempt to parse the policy ID section, skip if there are errors
+			fails = append(fails, fmt.Sprintf("%s - %s", result.Filename, fail.Message))
 			policyID, err := getPolicyIDFromMetadata(fail.Metadata, policyIDKey)
 			if err != nil {
-				fails = append(fails, fmt.Sprintf("%s - %s", result.Filename, fail.Message))
 				continue
 			}
-
-			fails = append(fails, fmt.Sprintf("%s - %s: %s", result.Filename, policyID, fail.Message))
-
 			if !contains(policiesWithFails, policyID) {
 				policiesWithFails = append(policiesWithFails, policyID)
 			}
 		}
 
 		for _, warn := range result.Warnings {
-			// attempt to parse the policy ID section, skip if there are errors
+			warns = append(warns, fmt.Sprintf("%s - %s", result.Filename, warn.Message))
 			policyID, err := getPolicyIDFromMetadata(warn.Metadata, policyIDKey)
 			if err != nil {
-				warns = append(warns, fmt.Sprintf("%s - %s", result.Filename, warn.Message))
 				continue
 			}
-
-			warns = append(warns, fmt.Sprintf("%s - %s: %s", result.Filename, policyID, warn.Message))
-
 			if !contains(policiesWithWarns, policyID) {
 				policiesWithWarns = append(policiesWithWarns, policyID)
 			}
