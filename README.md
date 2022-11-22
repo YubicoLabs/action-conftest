@@ -40,9 +40,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: conftest
-        uses: YubicoLabs/action-conftest@v2
+        uses: YubicoLabs/action-conftest@v3
         with:
           files: some_deployment.yaml another_resource.yaml
           gh-token: ${{ secrets.GITHUB_TOKEN }}
@@ -61,9 +61,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: conftest
-        uses: YubicoLabs/action-conftest@v2
+        uses: YubicoLabs/action-conftest@v3
         with:
           files: some_deployment.yaml another_resource.yaml
           pull-url: gcs::https://www.googleapis.com/storage/v1/bucket_name/policy
@@ -82,9 +82,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: conftest
-        uses: YubicoLabs/action-conftest@v2
+        uses: YubicoLabs/action-conftest@v3
         with:
           files: some_deployment.yaml another_resource.yaml
           gh-token: ${{ secrets.GITHUB_TOKEN }}
