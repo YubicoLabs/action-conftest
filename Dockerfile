@@ -1,4 +1,4 @@
-FROM instrumenta/conftest:v0.20.0 as conftest
+FROM openpolicyagent/conftest:v0.38.0 as conftest
 
 FROM golang:1.15-alpine as builder
 COPY --from=conftest /conftest /usr/local/bin/conftest
