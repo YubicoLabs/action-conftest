@@ -35,24 +35,29 @@ type commentData struct {
 	DocsURL string
 }
 
-type jsonResult struct {
+// Result describes the result of a single rule evaluation.
+type Result struct {
 	Message  string                 `json:"msg"`
 	Metadata map[string]interface{} `json:"metadata,omitempty"`
+	Outputs  []string               `json:"outputs,omitempty"`
 }
 
-type jsonCheckResult struct {
-	Filename  string       `json:"filename"`
-	Successes []jsonResult `json:"successes"`
-	Warnings  []jsonResult `json:"warnings,omitempty"`
-	Failures  []jsonResult `json:"failures,omitempty"`
+type CheckResult struct {
+	FileName   string   `json:"filename"`
+	Namespace  string   `json:"namespace"`
+	Successes  int      `json:"successes"`
+	Skipped    []Result `json:"skipped,omitempty"`
+	Warnings   []Result `json:"warnings,omitempty"`
+	Failures   []Result `json:"failures,omitempty"`
+	Exceptions []Result `json:"exceptions,omitempty"`
 }
 
 type metricsSubmission struct {
-	SourceID  string            `json:"sourceID"`
-	Successes int               `json:"successes,omitempty"`
-	Warnings  metricsSeverity   `json:"warns,omitempty"`
-	Failures  metricsSeverity   `json:"fails,omitempty"`
-	Details   []jsonCheckResult `json:"details,omitempty"`
+	SourceID  string          `json:"sourceID"`
+	Successes int             `json:"successes,omitempty"`
+	Warnings  metricsSeverity `json:"warns,omitempty"`
+	Failures  metricsSeverity `json:"fails,omitempty"`
+	Details   []CheckResult   `json:"details,omitempty"`
 }
 
 type metricsSeverity struct {
@@ -111,10 +116,10 @@ func run() error {
 	var fails, warns []string
 	var successes int
 	for _, result := range results {
-		successes += len(result.Successes)
+		successes += result.Successes
 
 		for _, fail := range result.Failures {
-			fails = append(fails, fmt.Sprintf("%s - %s", result.Filename, fail.Message))
+			fails = append(fails, fmt.Sprintf("%s - %s", result.FileName, fail.Message))
 			policyID, err := getPolicyIDFromMetadata(fail.Metadata, policyIDKey)
 			if err != nil {
 				continue
@@ -125,7 +130,7 @@ func run() error {
 		}
 
 		for _, warn := range result.Warnings {
-			warns = append(warns, fmt.Sprintf("%s - %s", result.Filename, warn.Message))
+			warns = append(warns, fmt.Sprintf("%s - %s", result.FileName, warn.Message))
 			policyID, err := getPolicyIDFromMetadata(warn.Metadata, policyIDKey)
 			if err != nil {
 				continue
@@ -264,7 +269,7 @@ func runConftestPull(url string) error {
 	return nil
 }
 
-func runConftestTest() ([]jsonCheckResult, error) {
+func runConftestTest() ([]CheckResult, error) {
 	args := []string{"test", "--no-color", "--output", "json"}
 	flags := getFlagsFromEnv()
 	args = append(args, flags...)
@@ -274,9 +279,9 @@ func runConftestTest() ([]jsonCheckResult, error) {
 	cmd := exec.Command("conftest", args...)
 	out, _ := cmd.CombinedOutput() // intentionally ignore errors so we can parse the results
 
-	var results []jsonCheckResult
+	var results []CheckResult
 	if err := json.Unmarshal(out, &results); err != nil {
-		return nil, fmt.Errorf("%s", string(out))
+		return nil, fmt.Errorf("%s -- error is: %v", string(out), err)
 	}
 
 	return results, nil

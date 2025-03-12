@@ -32,6 +32,7 @@ jobs:
       - name: run action
         uses: './'
         with:
+          add-comment: false
           files: '.github/test/resources'
           policy: '.github/test/policy/always_warn.rego'
           gh-token: ${{ secrets.GITHUB_TOKEN }}
