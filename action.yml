@@ -3,7 +3,8 @@ description: "Easily run Conftest, pull remote policies, surface the results, an
 branding:
   icon: "check-square"
   color: "purple"
-inputs: 
+
+inputs:
   files:
     description: "Files and/or folders for Conftest to test (space delimited)"
     required: true
@@ -59,6 +60,7 @@ inputs:
     description: "Name of the key in the details object that stores the policy ID"
     default: "policyID"
     required: false
+
 runs:
   using: 'docker'
   image: 'Dockerfile'
