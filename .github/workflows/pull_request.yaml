@@ -34,6 +34,7 @@ jobs:
         with:
           add-comment: false
           files: '.github/test/resources'
+          pull-url: 'https://github.com/YubicoLabs/action-conftest/tree/main/.github/test/policy'
           policy: '.github/test/policy/always_warn.rego'
           gh-token: ${{ secrets.GITHUB_TOKEN }}
           gh-comment-url: ${{ github.event.pull_request.comments_url }}
